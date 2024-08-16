@@ -105,6 +105,7 @@ config :block_scout_web, :api_rate_limit,
   limit_by_ip: ConfigHelper.parse_integer_env_var("API_RATE_LIMIT_BY_IP", 3000),
   time_interval_limit_by_ip: ConfigHelper.parse_time_env_var("API_RATE_LIMIT_BY_IP_TIME_INTERVAL", "5m"),
   static_api_key: System.get_env("API_RATE_LIMIT_STATIC_API_KEY"),
+  no_rate_limit_api_key: System.get_env("API_NO_RATE_LIMIT_API_KEY"),
   whitelisted_ips: System.get_env("API_RATE_LIMIT_WHITELISTED_IPS"),
   is_blockscout_behind_proxy: ConfigHelper.parse_bool_env_var("API_RATE_LIMIT_IS_BLOCKSCOUT_BEHIND_PROXY"),
   api_v2_ui_limit: ConfigHelper.parse_integer_env_var("API_RATE_LIMIT_UI_V2_WITH_TOKEN", 5),
@@ -199,6 +200,9 @@ config :ethereum_jsonrpc, EthereumJSONRPC.PendingTransaction,
 
 config :ethereum_jsonrpc, EthereumJSONRPC.RequestCoordinator,
   wait_per_timeout: ConfigHelper.parse_time_env_var("ETHEREUM_JSONRPC_WAIT_PER_TIMEOUT", "20s")
+
+config :ethereum_jsonrpc, EthereumJSONRPC.WebSocket.RetryWorker,
+  retry_interval: ConfigHelper.parse_time_env_var("ETHEREUM_JSONRPC_WS_RETRY_INTERVAL", "1m")
 
 config :ethereum_jsonrpc, EthereumJSONRPC.Utility.EndpointAvailabilityChecker, enabled: true
 
@@ -387,12 +391,24 @@ config :explorer, Explorer.ExchangeRates.TokenExchangeRates,
   enabled: !ConfigHelper.parse_bool_env_var("DISABLE_TOKEN_EXCHANGE_RATE", "true"),
   interval: ConfigHelper.parse_time_env_var("TOKEN_EXCHANGE_RATE_INTERVAL", "5s"),
   refetch_interval: ConfigHelper.parse_time_env_var("TOKEN_EXCHANGE_RATE_REFETCH_INTERVAL", "1h"),
-  max_batch_size: ConfigHelper.parse_integer_env_var("TOKEN_EXCHANGE_RATE_MAX_BATCH_SIZE", 150)
+  max_batch_size: ConfigHelper.parse_integer_env_var("TOKEN_EXCHANGE_RATE_MAX_BATCH_SIZE", 150),
+  source: ConfigHelper.token_exchange_rates_source()
+
+cryptorank_secondary_coin_id = ConfigHelper.parse_integer_or_nil_env_var("EXCHANGE_RATES_CRYPTORANK_SECONDARY_COIN_ID")
+
+config :explorer, Explorer.ExchangeRates.Source.Cryptorank,
+  platform: ConfigHelper.parse_integer_or_nil_env_var("EXCHANGE_RATES_CRYPTORANK_PLATFORM_ID"),
+  base_url: System.get_env("EXCHANGE_RATES_CRYPTORANK_BASE_URL", "https://api.cryptorank.io/v1/"),
+  api_key: System.get_env("EXCHANGE_RATES_CRYPTORANK_API_KEY"),
+  coin_id: ConfigHelper.parse_integer_or_nil_env_var("EXCHANGE_RATES_CRYPTORANK_COIN_ID"),
+  secondary_coin_id: cryptorank_secondary_coin_id,
+  limit: ConfigHelper.parse_integer_env_var("EXCHANGE_RATES_CRYPTORANK_LIMIT", 1000)
 
 config :explorer, Explorer.Market.History.Cataloger,
   enabled: !disable_indexer? && !disable_exchange_rates?,
   history_fetch_interval: ConfigHelper.parse_time_env_var("MARKET_HISTORY_FETCH_INTERVAL", "1h"),
-  secondary_coin_enabled: cmc_secondary_coin_id || cg_secondary_coin_id || cc_secondary_coin_symbol
+  secondary_coin_enabled:
+    cmc_secondary_coin_id || cg_secondary_coin_id || cc_secondary_coin_symbol || cryptorank_secondary_coin_id
 
 config :explorer, Explorer.Chain.Transaction, suave_bid_contracts: System.get_env("SUAVE_BID_CONTRACTS", "")
 
@@ -450,6 +466,9 @@ config :explorer, Explorer.Chain.Cache.Uncles,
 config :explorer, Explorer.Chain.Cache.Uncles,
   ttl_check_interval: ConfigHelper.cache_ttl_check_interval(disable_indexer?),
   global_ttl: ConfigHelper.cache_global_ttl(disable_indexer?)
+
+config :explorer, Explorer.Chain.Cache.CeloCoreContracts,
+  contracts: ConfigHelper.parse_json_env_var("CELO_CORE_CONTRACTS")
 
 config :explorer, Explorer.ThirdPartyIntegrations.Sourcify,
   server_url: System.get_env("SOURCIFY_SERVER_URL") || "https://sourcify.dev/server",
@@ -646,7 +665,8 @@ config :indexer, :ipfs,
   gateway_url_param_key: System.get_env("IPFS_GATEWAY_URL_PARAM_KEY"),
   gateway_url_param_value: System.get_env("IPFS_GATEWAY_URL_PARAM_VALUE"),
   gateway_url_param_location:
-    ConfigHelper.parse_catalog_value("IPFS_GATEWAY_URL_PARAM_LOCATION", ["query", "header"], true)
+    ConfigHelper.parse_catalog_value("IPFS_GATEWAY_URL_PARAM_LOCATION", ["query", "header"], true),
+  public_gateway_url: System.get_env("IPFS_PUBLIC_GATEWAY_URL", "https://ipfs.io/ipfs")
 
 config :indexer, Indexer.Supervisor, enabled: !ConfigHelper.parse_bool_env_var("DISABLE_INDEXER")
 
@@ -894,6 +914,7 @@ config :indexer, Indexer.Fetcher.Arbitrum,
   l1_rollup_address: System.get_env("INDEXER_ARBITRUM_L1_ROLLUP_CONTRACT"),
   l1_rollup_init_block: ConfigHelper.parse_integer_env_var("INDEXER_ARBITRUM_L1_ROLLUP_INIT_BLOCK", 1),
   l1_start_block: ConfigHelper.parse_integer_env_var("INDEXER_ARBITRUM_L1_COMMON_START_BLOCK", 0),
+  l1_finalization_threshold: ConfigHelper.parse_integer_env_var("INDEXER_ARBITRUM_L1_FINALIZATION_THRESHOLD", 1000),
   rollup_chunk_size: ConfigHelper.parse_integer_env_var("INDEXER_ARBITRUM_ROLLUP_CHUNK_SIZE", 20)
 
 config :indexer, Indexer.Fetcher.Arbitrum.TrackingMessagesOnL1,
@@ -1000,6 +1021,19 @@ config :indexer, Indexer.Fetcher.PolygonZkevm.TransactionBatch.Supervisor,
   enabled:
     ConfigHelper.chain_type() == :polygon_zkevm &&
       ConfigHelper.parse_bool_env_var("INDEXER_POLYGON_ZKEVM_BATCHES_ENABLED")
+
+config :indexer, Indexer.Fetcher.Celo.ValidatorGroupVotes,
+  batch_size: ConfigHelper.parse_integer_env_var("INDEXER_CELO_VALIDATOR_GROUP_VOTES_BATCH_SIZE", 200_000)
+
+celo_epoch_fetchers_enabled? =
+  ConfigHelper.chain_type() == :celo and
+    not ConfigHelper.parse_bool_env_var("INDEXER_DISABLE_CELO_EPOCH_FETCHER")
+
+config :indexer, Indexer.Fetcher.Celo.ValidatorGroupVotes.Supervisor, enabled: celo_epoch_fetchers_enabled?
+
+config :indexer, Indexer.Fetcher.Celo.EpochBlockOperations.Supervisor,
+  enabled: celo_epoch_fetchers_enabled?,
+  disabled?: not celo_epoch_fetchers_enabled?
 
 Code.require_file("#{config_env()}.exs", "config/runtime")
 
