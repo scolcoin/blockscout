@@ -29,7 +29,8 @@ defmodule ConfigHelper do
     ext_repos =
       [
         {parse_bool_env_var("BRIDGED_TOKENS_ENABLED"), Explorer.Repo.BridgedTokens},
-        {parse_bool_env_var("MUD_INDEXER_ENABLED"), Explorer.Repo.Mud}
+        {parse_bool_env_var("MUD_INDEXER_ENABLED"), Explorer.Repo.Mud},
+        {parse_bool_env_var("SHRINK_INTERNAL_TRANSACTIONS_ENABLED"), Explorer.Repo.ShrunkInternalTransactions}
       ]
       |> Enum.filter(&elem(&1, 0))
       |> Enum.map(&elem(&1, 1))
@@ -173,7 +174,17 @@ defmodule ConfigHelper do
 
   @spec exchange_rates_source() :: Source.CoinGecko | Source.CoinMarketCap | Source.Mobula
   def exchange_rates_source do
-    case System.get_env("EXCHANGE_RATES_MARKET_CAP_SOURCE") do
+    case System.get_env("EXCHANGE_RATES_SOURCE") do
+      "coin_gecko" -> Source.CoinGecko
+      "coin_market_cap" -> Source.CoinMarketCap
+      "mobula" -> Source.Mobula
+      _ -> Source.CoinGecko
+    end
+  end
+
+  @spec exchange_rates_secondary_coin_source() :: Source.CoinGecko | Source.CoinMarketCap | Source.Mobula
+  def exchange_rates_secondary_coin_source do
+    case System.get_env("EXCHANGE_RATES_SECONDARY_COIN_SOURCE") do
       "coin_gecko" -> Source.CoinGecko
       "coin_market_cap" -> Source.CoinMarketCap
       "mobula" -> Source.Mobula
@@ -310,6 +321,11 @@ defmodule ConfigHelper do
 
   @spec chain_type() :: atom() | nil
   def chain_type, do: parse_catalog_value("CHAIN_TYPE", @supported_chain_types, true, "default")
+
+  @supported_modes ["all", "indexer", "api"]
+
+  @spec mode :: atom()
+  def mode, do: parse_catalog_value("MODE", @supported_modes, true, "all")
 
   @spec eth_call_url(String.t() | nil) :: String.t() | nil
   def eth_call_url(default \\ nil) do

@@ -142,7 +142,8 @@ defmodule Explorer.Application do
         configure(Explorer.Migrator.TransactionBlockConsensus),
         configure(Explorer.Migrator.TokenTransferBlockConsensus),
         configure(Explorer.Migrator.RestoreOmittedWETHTransfers),
-        configure_chain_type_dependent_process(Explorer.Chain.Cache.StabilityValidatorsCounters, :stability)
+        configure_chain_type_dependent_process(Explorer.Chain.Cache.StabilityValidatorsCounters, :stability),
+        configure_mode_dependent_process(Explorer.Migrator.ShrinkInternalTransactions, :indexer)
       ]
       |> List.flatten()
 
@@ -164,7 +165,8 @@ defmodule Explorer.Application do
         Explorer.Repo.Arbitrum,
         Explorer.Repo.BridgedTokens,
         Explorer.Repo.Filecoin,
-        Explorer.Repo.Stability
+        Explorer.Repo.Stability,
+        Explorer.Repo.ShrunkInternalTransactions
       ]
     else
       []
@@ -201,6 +203,14 @@ defmodule Explorer.Application do
 
   defp configure_chain_type_dependent_process(process, chain_type) do
     if Application.get_env(:explorer, :chain_type) == chain_type do
+      process
+    else
+      []
+    end
+  end
+
+  defp configure_mode_dependent_process(process, mode) do
+    if Application.get_env(:explorer, :mode) in [mode, :all] do
       process
     else
       []
