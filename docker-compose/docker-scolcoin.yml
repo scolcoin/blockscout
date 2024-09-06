@@ -1,1 +1,33 @@
 
+version: '3'
+services:
+  blockscout:
+    image: blockscout/blockscout
+    environment:
+      ETHEREUM_JSONRPC_HTTP_URL: "http://nodo:3545"
+      ETHEREUM_JSONRPC_WS_URL: "ws://nodo:3546"
+      ETHEREUM_JSONRPC_TRACE_URL: "http://nodo:3545"
+      ETHEREUM_JSONRPC_VARIANT: "geth"
+      MIX_ENV: "prod"
+      COIN: "SCOL"
+      CHAIN_ID: "65450"
+      CURRENCY: "SCOL"
+      NETWORK: ""
+      SUBNETWORK: "Scolcoin Mainnet"
+      BLOCK_TRANSFORMER: "clique"
+    ports:
+      - "4000:4000"
+    depends_on:
+      - nodo
+    networks:
+      - evm_network
+
+  nodo:
+    image: ethereum/client-go
+    command: "--http --http.addr 0.0.0.0 --http.port 3545 --ws --ws.addr 0.0.0.0 --ws.port 3546"
+    networks:
+      - evm_network
+
+networks:
+  evm_network:
+    driver: bridge
