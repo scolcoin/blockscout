@@ -23,6 +23,7 @@ services:
     depends_on:
       - db
       - redis-db
+      
     extends:
       file: ./services/backend.yml
       service: backend
@@ -41,11 +42,19 @@ services:
     links:
       - db:database
     environment:
-        ETHEREUM_JSONRPC_HTTP_URL: http://0.0.0.0:3545/
-        ETHEREUM_JSONRPC_TRACE_URL: http://0.0.0.0:3545/
-        ETHEREUM_JSONRPC_WS_URL: ws://0.0.0.0:3546/
+        ETHEREUM_JSONRPC_VARIANT: 'geth'
+        ETHEREUM_JSONRPC_HTTP_URL: http://host.docker.internal:3545/
+        ETHEREUM_JSONRPC_TRACE_URL: http://host.docker.internal:3545/
+        ETHEREUM_JSONRPC_WS_URL: ws://host.docker.internal:3546/
         CHAIN_ID: '65450'
-
+        MIX_ENV: 'prod'
+        ACCOUNT_ENABLED: 'false'
+        INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: 'true'
+        INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: 'true'
+        ECTO_USE_SSL: 'false'
+        API_V2_ENABLED: 'true'
+        
+        
   visualizer:
     extends:
       file: ./services/visualizer.yml
