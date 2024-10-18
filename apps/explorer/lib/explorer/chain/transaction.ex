@@ -2058,6 +2058,7 @@ defmodule Explorer.Chain.Transaction do
         |> Enum.map(fn implementation_address_hash ->
           Map.get(implementation_addresses_with_smart_contracts, implementation_address_hash)
         end)
+        |> Enum.filter(&(!is_nil(&1)))
 
       if is_nil(implementation_addresses_with_smart_contract_preload) do
         proxy_implementation_addresses_map
