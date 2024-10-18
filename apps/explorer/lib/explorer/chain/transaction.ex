@@ -2059,8 +2059,12 @@ defmodule Explorer.Chain.Transaction do
           Map.get(implementation_addresses_with_smart_contracts, implementation_address_hash)
         end)
 
-      proxy_implementation_addresses_map
-      |> Map.put(proxy_implementations.proxy_address_hash, implementation_addresses_with_smart_contract_preload)
+      if is_nil(implementation_addresses_with_smart_contract_preload) do
+        proxy_implementation_addresses_map
+      else
+        proxy_implementation_addresses_map
+        |> Map.put(proxy_implementations.proxy_address_hash, implementation_addresses_with_smart_contract_preload)
+      end
     end)
   end
 
