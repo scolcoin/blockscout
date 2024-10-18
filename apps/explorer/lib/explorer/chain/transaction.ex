@@ -16,6 +16,7 @@ defmodule Explorer.Chain.Transaction.Schema do
     Hash,
     InternalTransaction,
     Log,
+    SignedAuthorization,
     TokenTransfer,
     TransactionAction,
     Wei
@@ -268,6 +269,11 @@ defmodule Explorer.Chain.Transaction.Schema do
           foreign_key: :created_contract_address_hash,
           references: :hash,
           type: Hash.Address
+        )
+
+        has_many(:signed_authorizations, SignedAuthorization,
+          foreign_key: :transaction_hash,
+          references: :hash
         )
 
         unquote_splicing(@chain_type_fields)
@@ -773,6 +779,7 @@ defmodule Explorer.Chain.Transaction do
         proxy_implementation_addresses_map \\ %{}
       )
 
+  # skip decoding if there is no to_address
   def decoded_input_data(
         %__MODULE__{to_address: nil},
         _,
@@ -783,9 +790,11 @@ defmodule Explorer.Chain.Transaction do
       ),
       do: {{:error, :no_to_address}, full_abi_acc, methods_acc}
 
+  # skip decoding if transaction is not loaded
   def decoded_input_data(%NotLoaded{}, _, _, full_abi_acc, methods_acc, _proxy_implementation_addresses_map),
     do: {{:error, :not_loaded}, full_abi_acc, methods_acc}
 
+  # skip decoding if input is empty
   def decoded_input_data(
         %__MODULE__{input: %{bytes: bytes}},
         _,
@@ -798,6 +807,7 @@ defmodule Explorer.Chain.Transaction do
     {{:error, :no_input_data}, full_abi_acc, methods_acc}
   end
 
+  # skip decoding if to_address is not a contract unless DECODE_NOT_A_CONTRACT_CALLS is set
   if not Application.compile_env(:explorer, :decode_not_a_contract_calls) do
     def decoded_input_data(
           %__MODULE__{to_address: %{contract_code: nil}},
@@ -810,6 +820,7 @@ defmodule Explorer.Chain.Transaction do
         do: {{:error, :not_a_contract_call}, full_abi_acc, methods_acc}
   end
 
+  # if to_address's smart_contract is nil reduce to the case when to_address is not loaded
   def decoded_input_data(
         %__MODULE__{
           to_address: %{smart_contract: nil},
@@ -836,6 +847,7 @@ defmodule Explorer.Chain.Transaction do
     )
   end
 
+  # if to_address's smart_contract is not loaded reduce to the case when to_address is not loaded
   def decoded_input_data(
         %__MODULE__{
           to_address: %{smart_contract: %NotLoaded{}},
@@ -862,6 +874,7 @@ defmodule Explorer.Chain.Transaction do
     )
   end
 
+  # if to_address is not loaded try decoding by method candidates in the DB
   def decoded_input_data(
         %__MODULE__{
           to_address: %NotLoaded{},
@@ -899,6 +912,7 @@ defmodule Explorer.Chain.Transaction do
      full_abi_acc, methods_acc}
   end
 
+  # if to_address is not loaded and input is not a method call return error
   def decoded_input_data(
         %__MODULE__{to_address: %NotLoaded{}},
         _,
@@ -931,7 +945,7 @@ defmodule Explorer.Chain.Transaction do
            proxy_implementation_addresses_map
          ) do
       # In some cases transactions use methods of some unpredictable contracts, so we can try to look up for method in a whole DB
-      {{:error, :could_not_decode}, full_abi_acc} ->
+      {{:error, error}, full_abi_acc} when error in [:could_not_decode, :no_matching_function] ->
         case decoded_input_data(
                %__MODULE__{
                  to_address: %NotLoaded{},
@@ -1950,12 +1964,13 @@ defmodule Explorer.Chain.Transaction do
 
   @doc """
   Dynamically adds to/from for `transactions` query based on whether the target address EOA or smart-contract
-  todo: pay attention to [EIP-5003](https://eips.ethereum.org/EIPS/eip-5003): if it will be included, this logic should be rolled back.
+  EOAs with code (EIP-7702) are treated as regular EOAs.
   """
   @spec where_transactions_to_from(Hash.Address.t()) :: any()
   def where_transactions_to_from(address_hash) do
     with {:ok, address} <- Chain.hash_to_address(address_hash),
-         true <- Address.smart_contract?(address) do
+         true <- Address.smart_contract?(address),
+         false <- Address.eoa_with_code?(address) do
       dynamic([transaction], transaction.to_address_hash == ^address_hash)
     else
       _ ->
@@ -1971,7 +1986,7 @@ defmodule Explorer.Chain.Transaction do
     Only consensus blocks are taken into account.
   """
   @spec tx_count_for_block_range(Range.t()) :: non_neg_integer()
-  def tx_count_for_block_range(from..to) do
+  def tx_count_for_block_range(from..to//_) do
     Repo.replica().aggregate(
       from(
         t in Transaction,
@@ -2044,8 +2059,12 @@ defmodule Explorer.Chain.Transaction do
           Map.get(implementation_addresses_with_smart_contracts, implementation_address_hash)
         end)
 
-      proxy_implementation_addresses_map
-      |> Map.put(proxy_implementations.proxy_address_hash, implementation_addresses_with_smart_contract_preload)
+      if is_nil(implementation_addresses_with_smart_contract_preload) do
+        proxy_implementation_addresses_map
+      else
+        proxy_implementation_addresses_map
+        |> Map.put(proxy_implementations.proxy_address_hash, implementation_addresses_with_smart_contract_preload)
+      end
     end)
   end
 

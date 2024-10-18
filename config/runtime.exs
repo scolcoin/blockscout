@@ -33,6 +33,7 @@ config :block_scout_web,
   permanent_light_mode_enabled: ConfigHelper.parse_bool_env_var("PERMANENT_LIGHT_MODE_ENABLED"),
   display_token_icons: ConfigHelper.parse_bool_env_var("DISPLAY_TOKEN_ICONS"),
   hide_block_miner: ConfigHelper.parse_bool_env_var("HIDE_BLOCK_MINER"),
+  hide_scam_addresses: ConfigHelper.parse_bool_env_var("HIDE_SCAM_ADDRESSES"),
   show_tenderly_link: ConfigHelper.parse_bool_env_var("SHOW_TENDERLY_LINK"),
   sensitive_endpoints_api_key: System.get_env("API_SENSITIVE_ENDPOINTS_KEY"),
   disable_api?: disable_api?
@@ -646,6 +647,8 @@ config :explorer, Explorer.Migrator.FilecoinPendingAddressOperations,
   batch_size: ConfigHelper.parse_integer_env_var("FILECOIN_PENDING_ADDRESS_OPERATIONS_MIGRATION_BATCH_SIZE", 100),
   concurrency: ConfigHelper.parse_integer_env_var("FILECOIN_PENDING_ADDRESS_OPERATIONS_MIGRATION_CONCURRENCY", 1)
 
+config :explorer, Explorer.Chain.Blackfort.Validator, api_url: System.get_env("BLACKFORT_VALIDATOR_API_URL")
+
 ###############
 ### Indexer ###
 ###############
@@ -678,7 +681,9 @@ config :indexer,
     ConfigHelper.parse_integer_env_var("INDEXER_TOKEN_BALANCES_FETCHER_INIT_QUERY_LIMIT", 100_000),
   coin_balances_fetcher_init_limit:
     ConfigHelper.parse_integer_env_var("INDEXER_COIN_BALANCES_FETCHER_INIT_QUERY_LIMIT", 2000),
-  graceful_shutdown_period: ConfigHelper.parse_time_env_var("INDEXER_GRACEFUL_SHUTDOWN_PERIOD", "5m")
+  graceful_shutdown_period: ConfigHelper.parse_time_env_var("INDEXER_GRACEFUL_SHUTDOWN_PERIOD", "5m"),
+  internal_transactions_fetch_order:
+    ConfigHelper.parse_catalog_value("INDEXER_INTERNAL_TRANSACTIONS_FETCH_ORDER", ["asc", "desc"], true, "asc")
 
 config :indexer, :ipfs,
   gateway_url: System.get_env("IPFS_GATEWAY_URL", "https://ipfs.io/ipfs"),
@@ -970,6 +975,9 @@ config :indexer, Indexer.Fetcher.Arbitrum.RollupMessagesCatchup,
 config :indexer, Indexer.Fetcher.Arbitrum.RollupMessagesCatchup.Supervisor,
   enabled: ConfigHelper.parse_bool_env_var("INDEXER_ARBITRUM_BRIDGE_MESSAGES_TRACKING_ENABLED")
 
+config :indexer, Indexer.Fetcher.Arbitrum.MessagesToL2Matcher.Supervisor,
+  disabled?: not ConfigHelper.parse_bool_env_var("INDEXER_ARBITRUM_BRIDGE_MESSAGES_TRACKING_ENABLED")
+
 config :indexer, Indexer.Fetcher.RootstockData.Supervisor,
   disabled?:
     ConfigHelper.chain_type() != :rsk || ConfigHelper.parse_bool_env_var("INDEXER_DISABLE_ROOTSTOCK_DATA_FETCHER")
@@ -1063,7 +1071,7 @@ config :indexer, Indexer.Fetcher.Celo.EpochBlockOperations.Supervisor,
   disabled?: not celo_epoch_fetchers_enabled?
 
 config :indexer, Indexer.Fetcher.Filecoin.BeryxAPI,
-  base_url: ConfigHelper.safe_get_env("BERYX_API_BASE_URL", "https://api.zondax.ch/fil/data/v3"),
+  base_url: ConfigHelper.safe_get_env("BERYX_API_BASE_URL", "https://api.zondax.ch/fil/data/v3/mainnet"),
   api_token: System.get_env("BERYX_API_TOKEN")
 
 filecoin_native_address_fetcher_enabled? =
