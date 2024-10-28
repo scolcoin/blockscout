@@ -43,9 +43,9 @@ services:
       - db:database
     environment:
         ETHEREUM_JSONRPC_VARIANT: 'geth'
-        ETHEREUM_JSONRPC_HTTP_URL: http://host.docker.internal:3545/
-        ETHEREUM_JSONRPC_TRACE_URL: http://host.docker.internal:3545/
-        ETHEREUM_JSONRPC_WS_URL: ws://host.docker.internal:3546/
+        ETHEREUM_JSONRPC_HTTP_URL: http://0.0.0.0:3545/
+        ETHEREUM_JSONRPC_TRACE_URL: http://0.0.0.0:3545/
+        ETHEREUM_JSONRPC_WS_URL: http://0.0.0.0:3546/
         CHAIN_ID: '65450'
         MIX_ENV: 'prod'
         ACCOUNT_ENABLED: 'false'
