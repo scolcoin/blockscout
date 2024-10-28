@@ -1467,7 +1467,6 @@ defmodule Explorer.Chain do
   def indexed_ratio_internal_transactions do
     if indexer_running?() and internal_transactions_fetcher_running?() do
       %{max: max_saved_block_number} = BlockNumber.get_all()
-      pbo_count = PendingBlockOperationCache.estimated_count()
 
       min_blockchain_trace_block_number = Application.get_env(:indexer, :trace_first_block)
 
@@ -1478,6 +1477,8 @@ defmodule Explorer.Chain do
         _ ->
           full_blocks_range =
             max_saved_block_number - min_blockchain_trace_block_number - BlockNumberHelper.null_rounds_count() + 1
+
+          pbo_count = pbo_count_in_range(min_blockchain_trace_block_number, max_saved_block_number)
 
           processed_int_transactions_for_blocks_count = max(0, full_blocks_range - pbo_count)
 
@@ -1494,6 +1495,14 @@ defmodule Explorer.Chain do
     else
       Decimal.new(1)
     end
+  end
+
+  defp pbo_count_in_range(from_block_number, to_block_number) do
+    PendingBlockOperation
+    |> where([pbo], pbo.block_number >= ^from_block_number)
+    |> where([pbo], pbo.block_number <= ^to_block_number)
+    |> select([pbo], count(pbo.block_number))
+    |> Repo.one()
   end
 
   @spec get_ratio(non_neg_integer(), non_neg_integer()) :: Decimal.t()
