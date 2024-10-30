@@ -643,6 +643,7 @@
         "zkatana",
         "zkbob",
         "zkevm",
+        "zksolc",
         "zksync"
     ],
     "enableFiletypes": [
