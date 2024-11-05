@@ -1,4 +1,6 @@
 defmodule BlockScoutWeb.Account.API.V2.UserView do
+  use BlockScoutWeb, :view
+
   alias BlockScoutWeb.Account.API.V2.AccountView
   alias BlockScoutWeb.API.V2.Helper
   alias Ecto.Changeset
