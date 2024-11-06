@@ -459,6 +459,7 @@ defmodule BlockScoutWeb.Routers.ApiRouter do
 
     get("/logs-csv", AddressTransactionController, :logs_csv)
 
+    # todo: remove it in the future. Path /api/health should be used instead.
     scope "/health" do
       get("/", HealthController, :health)
       get("/liveness", HealthController, :liveness)
@@ -488,6 +489,14 @@ defmodule BlockScoutWeb.Routers.ApiRouter do
         "transaction" => {RPC.TransactionController, []}
       })
     end
+  end
+
+  scope "/health" do
+    alias BlockScoutWeb.API.V1.HealthController
+    get("/", HealthController, :health)
+    get("/liveness", HealthController, :liveness)
+    get("/readiness", HealthController, :readiness)
+    get("/multichain-search-export", HealthController, :multichain_search_db_export)
   end
 
   # For backward compatibility. Should be removed
