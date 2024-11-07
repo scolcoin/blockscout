@@ -46,6 +46,7 @@ services:
         ETHEREUM_JSONRPC_WS_URL: ws://172.17.0.1:3546/
         LOGO: https://scolcoin.com/include/ima/fvcon512-50x50.png
         CHAIN_ID: '65450'
+        BLOCK_TRANSFORMER: 'clique'
 
   visualizer:
     extends:
